@@ -1,0 +1,7 @@
+interface:
+  display_name: "Skill Conflict Auditor"
+  short_description: "Find skill conflicts and generate review patches"
+  brand_color: "#2563EB"
+  default_prompt: "Use $skill-conflict-auditor to audit my installed Codex skills and generate a Markdown report, JSON report, and suggested patch without applying changes."
+policy:
+  allow_implicit_invocation: true
