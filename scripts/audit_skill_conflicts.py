@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit Codex skills for conflicts and generate reports plus a review patch."""
+"""Audit AI agent skills/capabilities for conflicts and generate review patches."""
 
 from __future__ import annotations
 
@@ -275,7 +275,14 @@ def discover_skill_paths(roots: list[Path], new_skill: Path | None) -> list[Path
 def default_roots() -> list[Path]:
     home = Path.home()
     codex_home = Path(os.environ.get("CODEX_HOME", home / ".codex"))
-    roots = [codex_home / "skills", codex_home / "plugins" / "cache"]
+    claude_home = Path(os.environ.get("CLAUDE_CONFIG_DIR", home / ".claude"))
+    openclaw_home = Path(os.environ.get("OPENCLAW_HOME", home / ".openclaw"))
+    roots = [
+        codex_home / "skills",
+        codex_home / "plugins" / "cache",
+        claude_home,
+        openclaw_home,
+    ]
     cwd = Path.cwd()
     if (cwd / "SKILL.md").exists() or any(cwd.glob("*/SKILL.md")):
         roots.append(cwd)
@@ -329,10 +336,10 @@ def audit(skills: list[Skill]) -> list[Finding]:
     for name, group in by_name.items():
         if len(group) > 1:
             findings.append(Finding(
-                "high", "duplicate-name", "Duplicate skill name",
+                "high", "duplicate-name", "Duplicate capability name",
                 f"Multiple skills normalize to `{name}`.",
                 [skill_label(s) for s in group],
-                "Rename one skill and update its description so trigger intent is distinct.",
+                "Rename one capability and update its description so trigger intent is distinct.",
             ))
 
     for i, left in enumerate(skills):
@@ -350,10 +357,10 @@ def audit(skills: list[Skill]) -> list[Finding]:
                 and normalize_name(left.name) != normalize_name(right.name)
             ):
                 findings.append(Finding(
-                    "high", "near-duplicate-name", "Near-duplicate skill names",
+                    "high", "near-duplicate-name", "Near-duplicate capability names",
                     f"Name similarity score: {name_score:.2f}.",
                     pair_labels,
-                    "Rename or merge skills if they represent the same capability.",
+                    "Rename or merge capabilities if they represent the same behavior.",
                 ))
             if desc_score >= 0.42 or body_score >= 0.34:
                 findings.append(Finding(
@@ -368,7 +375,7 @@ def audit(skills: list[Skill]) -> list[Finding]:
                     "low", "tool-overlap", "Similar skills mention the same tools",
                     "Shared tool groups: " + ", ".join(shared_tools),
                     pair_labels,
-                    "Confirm whether both skills should own this tool workflow or whether one should defer.",
+                    "Confirm whether both capabilities should own this tool workflow or whether one should defer.",
                 ))
             workflow_conflict = (
                 ("ask-first" in left.workflow_flags and "act-directly" in right.workflow_flags)
@@ -465,8 +472,8 @@ def suggested_text(skill: Skill, findings: list[Finding], patch_scope: str) -> s
     if skill.description and any(f.kind in {"trigger-overlap", "trigger-breadth"} for f in relevant):
         boundary = (
             "\n## Conflict Boundaries\n\n"
-            "- Prefer this skill only for the task family named in the frontmatter description.\n"
-            "- If another installed skill has a more specific description for the user's request, use the more specific skill.\n"
+            "- Prefer this capability only for the task family named in the frontmatter description.\n"
+            "- If another installed capability has a more specific description for the user's request, use the more specific capability.\n"
             "- When trigger intent is ambiguous, report the overlap and ask before applying changes.\n"
         )
         if "## Conflict Boundaries" not in text:
@@ -527,11 +534,11 @@ def summarize(findings: list[Finding]) -> dict[str, int]:
 def markdown_report(skills: list[Skill], findings: list[Finding], patch: str) -> str:
     counts = summarize(findings)
     lines = [
-        "# Skill Conflict Audit Report",
+        "# Agent Capability Conflict Audit Report",
         "",
         "## Summary",
         "",
-        f"- Skills scanned: {len(skills)}",
+        f"- Capabilities scanned: {len(skills)}",
         f"- Findings: {counts['total']} total, {counts['high']} high, {counts['medium']} medium, {counts['low']} low",
         f"- Suggested patch: {'generated' if patch.strip() else 'empty'}",
         "",
@@ -546,7 +553,7 @@ def markdown_report(skills: list[Skill], findings: list[Finding], patch: str) ->
             "",
             f"- Kind: `{finding.kind}`",
             f"- Detail: {finding.detail}",
-            "- Skills:",
+            "- Capabilities:",
         ])
         lines.extend(f"  - `{skill}`" for skill in finding.skills)
         lines.extend([
@@ -554,7 +561,7 @@ def markdown_report(skills: list[Skill], findings: list[Finding], patch: str) ->
             "",
         ])
     lines.extend([
-        "## Scanned Skills",
+        "## Scanned Capabilities",
         "",
     ])
     for skill in skills:
@@ -570,20 +577,21 @@ def markdown_report(skills: list[Skill], findings: list[Finding], patch: str) ->
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", action="append", default=[], help="Skill root to scan. Can be repeated.")
-    parser.add_argument("--new-skill", help="Path to a candidate skill directory or SKILL.md.")
+    parser.add_argument("--root", action="append", default=[], help="Capability root to scan. Can be repeated.")
+    parser.add_argument("--new-skill", dest="new_capability", help="Compatibility alias for --new-capability.")
+    parser.add_argument("--new-capability", dest="new_capability", help="Path to a candidate capability directory or SKILL.md.")
     parser.add_argument("--output-dir", default="./skill-conflict-auditor-report", help="Directory for reports.")
     parser.add_argument(
         "--patch-scope",
         choices=["candidate", "personal", "all"],
         default="candidate",
-        help="Which skills may appear in suggested_fixes.patch. Default: candidate.",
+        help="Which capabilities may appear in suggested_fixes.patch. Default: candidate.",
     )
     parser.add_argument("--fail-on-high", action="store_true", help="Exit 1 when high-severity findings exist.")
     args = parser.parse_args(argv)
 
     roots = [Path(root) for root in args.root] if args.root else default_roots()
-    new_skill = Path(args.new_skill) if args.new_skill else None
+    new_skill = Path(args.new_capability) if args.new_capability else None
     candidate_paths: set[Path] = set()
     if new_skill:
         candidate_paths.add(new_skill.expanduser().resolve())
@@ -598,7 +606,7 @@ def main(argv: list[str]) -> int:
     write_reports(out_dir, skills, findings, patch)
 
     counts = summarize(findings)
-    print(f"Scanned {len(skills)} skills.")
+    print(f"Scanned {len(skills)} capabilities.")
     print(f"Findings: {counts['total']} total, {counts['high']} high, {counts['medium']} medium, {counts['low']} low.")
     print(f"Markdown report: {out_dir / 'conflict_report.md'}")
     print(f"JSON report: {out_dir / 'conflict_report.json'}")
