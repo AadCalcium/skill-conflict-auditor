@@ -1,10 +1,10 @@
 # skill-conflict-auditor 使用文档
 
-`skill-conflict-auditor` 用来检查 Codex skills 之间是否存在冲突，并生成报告和建议补丁。它默认是半自动模式：只输出结果，不直接修改你的 skills。
+`skill-conflict-auditor` 用来检查 AI Agent 的 skills / capabilities / commands 是否存在冲突，适用于 Claude Code、Codex、OpenClaw 等环境。它默认是半自动模式：只输出报告和建议补丁，不直接修改你的文件。
 
 ## 能检查什么
 
-- skill 名称重复或相似。
+- skill、capability、command 名称重复或相似。
 - `description` 触发范围重叠或过宽。
 - `SKILL.md` frontmatter 缺失或格式错误。
 - 工作流冲突，例如一个要求先问用户，另一个要求直接执行。
@@ -22,18 +22,18 @@ skill-conflict-auditor/
 
 ## 常用命令
 
-全量扫描已安装 skills：
+全量扫描已安装能力包：
 
 ```bash
 python3 scripts/audit_skill_conflicts.py \
   --output-dir ./skill-conflict-auditor-report
 ```
 
-检查一个新 skill：
+检查一个新能力包：
 
 ```bash
 python3 scripts/audit_skill_conflicts.py \
-  --new-skill /path/to/new-skill \
+  --new-capability /path/to/new-capability \
   --output-dir ./skill-conflict-auditor-report
 ```
 
@@ -43,7 +43,9 @@ python3 scripts/audit_skill_conflicts.py \
 python3 scripts/audit_skill_conflicts.py \
   --root ~/.codex/skills \
   --root ~/.codex/plugins/cache \
-  --new-skill /path/to/new-skill \
+  --root ~/.claude \
+  --root ~/.openclaw \
+  --new-capability /path/to/new-capability \
   --output-dir ./skill-conflict-auditor-report
 ```
 
@@ -51,7 +53,7 @@ CI 中遇到 high 问题时失败：
 
 ```bash
 python3 scripts/audit_skill_conflicts.py \
-  --new-skill /path/to/new-skill \
+  --new-capability /path/to/new-capability \
   --fail-on-high
 ```
 
@@ -65,7 +67,7 @@ python3 scripts/audit_skill_conflicts.py \
 
 ## Patch 范围
 
-默认只给 `--new-skill` 指定的新 skill 生成补丁。
+默认只给 `--new-capability` 或 `--new-skill` 指定的新能力包生成补丁。
 
 可选范围：
 
@@ -75,7 +77,7 @@ python3 scripts/audit_skill_conflicts.py \
 --patch-scope all
 ```
 
-建议日常使用默认的 `candidate`。`all` 会包含插件缓存里的 skills，谨慎使用。
+建议日常使用默认的 `candidate`。`all` 会包含插件缓存或其他 agent 目录里的能力包，谨慎使用。
 
 ## 注意
 
